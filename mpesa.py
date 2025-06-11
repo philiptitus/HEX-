@@ -12,7 +12,7 @@ import os
 import io
 from fpdf import FPDF
 import base64
-from PROJECT.time_category_insights import time_category_insights_ui
+from time_category_insights import time_category_insights_ui
 
 
 
