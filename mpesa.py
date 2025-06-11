@@ -85,14 +85,19 @@ Create a detailed, personalized budget with specific allocation amounts for each
 
 
 
+
 #PART B
 # Streamlit UI
 st.title("M-PESA Transactions Dashboard")
 # File uploader for XLSX (move before load_data)
-st.sidebar.header("Upload M-PESA XLSX File")
-xlsx_file = st.sidebar.file_uploader("Upload XLSX Statement", type=["xlsx"])
-if xlsx_file is None:
-    st.warning("You must upload an M-PESA XLSX statement to use this dashboard.")
+st.sidebar.header("Upload M-PESA Statement (XLSX or PDF)")
+file = st.sidebar.file_uploader("Upload XLSX or PDF Statement", type=["xlsx", "pdf"])
+pdf_password = None
+if file is not None and file.name.lower().endswith(".pdf"):
+    pdf_password = st.sidebar.text_input("PDF Password (if required)", type="password")
+
+if file is None:
+    st.warning("You must upload an M-PESA XLSX or PDF statement to use this dashboard.")
     st.stop()
 
 
