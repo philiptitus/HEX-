@@ -19,6 +19,27 @@ from time_category_insights import time_category_insights_ui
 
 
 
+
+
+
+## NEW
+try:
+    import tabula
+    if not hasattr(tabula, 'read_pdf'):
+        raise ImportError("tabula-py is not installed or the wrong 'tabula' package is installed. Please install tabula-py via 'pip install tabula-py' and ensure Java is available.")
+    TABULA_AVAILABLE = True
+except ImportError as e:
+    TABULA_AVAILABLE = False
+    TABULA_IMPORT_ERROR = str(e)
+
+
+
+
+
+
+
+
+
 # --- Ensure prompts dict is initialized and contains all required keys at the top ---
 if 'prompts' not in globals():
     prompts = {}
@@ -120,39 +141,102 @@ def categorize_details(details):
 #PART D
 # Load data
 @st.cache_data
-def load_data(xlsx_file=None):
-    if xlsx_file is not None:
-        # Read uploaded XLSX and extract the correct table
-        required_columns = [
-            'Receipt No.',
-            'Completion Time',
-            'Details',
-            'Transaction Status',
-            'Paid In',
-            'Withdrawn',
-            'Balance'
-        ]
-        all_sheets = pd.read_excel(xlsx_file, sheet_name=None)
-        matching_tables = []
-        for df in all_sheets.values():
-            if all(col in df.columns for col in required_columns):
-                matching_tables.append(df[required_columns])
-        if matching_tables:
-            df = pd.concat(matching_tables, ignore_index=True)
+def load_data(file=None, pdf_password=None):
+    if file is not None:
+        if file.name.lower().endswith(".xlsx"):
+            # XLSX logic
+            required_columns = [
+                'Receipt No.',
+                'Completion Time',
+                'Details',
+                'Transaction Status',
+                'Paid In',
+                'Withdrawn',
+                'Balance'
+            ]
+            all_sheets = pd.read_excel(file, sheet_name=None)
+            matching_tables = []
+            for df in all_sheets.values():
+                if all(col in df.columns for col in required_columns):
+                    matching_tables.append(df[required_columns])
+            if matching_tables:
+                df = pd.concat(matching_tables, ignore_index=True)
+            else:
+                st.error("No tables with the required columns were found in the uploaded XLSX file.")
+                return None
+        elif file.name.lower().endswith(".pdf"):
+            # PDF logic: Try tabula-py first, fallback to PyPDF2 text extraction
+            if TABULA_AVAILABLE:
+                try:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
+                        tmp_pdf.write(file.read())
+                        tmp_pdf.flush()
+                        pdf_path = tmp_pdf.name
+                    dfs = tabula.read_pdf(pdf_path, pages='all', password=pdf_password if pdf_password else None, multiple_tables=True)
+                    required_columns = [
+                        'Receipt No.',
+                        'Completion Time',
+                        'Details',
+                        'Transaction Status',
+                        'Paid In',
+                        'Withdrawn',
+                        'Balance'
+                    ]
+                    matching_tables = []
+                    for df in dfs:
+                        if all(col in df.columns for col in required_columns):
+                            matching_tables.append(df[required_columns])
+                    if matching_tables:
+                        df = pd.concat(matching_tables, ignore_index=True)
+                    else:
+                        st.error("No tables with the required columns were found in the uploaded PDF file.")
+                        return None
+                except Exception as e:
+                    if 'Incorrect password' in str(e) or 'Password required' in str(e):
+                        st.error("Incorrect PDF password. Please check and try again.")
+                    elif 'read_pdf' in str(e) or 'attribute' in str(e):
+                        st.error("tabula-py is not installed or the wrong 'tabula' package is installed. Please install tabula-py via 'pip install tabula-py' and ensure Java is available.")
+                    else:
+                        st.error(f"Failed to extract tables from PDF: {e}")
+                    return None
+            elif 'TABULA_IMPORT_ERROR' in globals():
+                st.error(f"tabula-py import error: {TABULA_IMPORT_ERROR}")
+                return None
+            else:
+                # Fallback: Try to extract text with PyPDF2 and warn user
+                try:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    if pdf_reader.is_encrypted:
+                        if pdf_password:
+                            try:
+                                pdf_reader.decrypt(pdf_password)
+                            except Exception:
+                                st.error("Incorrect PDF password. Please check and try again.")
+                                return None
+                        else:
+                            st.error("This PDF is password-protected. Please enter the password.")
+                            return None
+                    text = ""
+                    for page in pdf_reader.pages:
+                        text += page.extract_text() + "\n"
+                    st.warning("Tabular extraction from PDF is limited without tabula-py. Only raw text extracted. Please install tabula-py and Java for best results.")
+                    return None
+                except Exception as e:
+                    if 'incorrect password' in str(e).lower():
+                        st.error("Incorrect PDF password. Please check and try again.")
+                    else:
+                        st.error(f"Failed to read PDF: {e}")
+                    return None
         else:
-            st.error("No tables with the required columns were found in the uploaded XLSX file.")
+            st.error("Unsupported file type. Please upload an XLSX or PDF statement.")
             return None
     else:
         # Fallback to data.csv
         df = pd.read_csv('data.csv')
-
-
-
-
-        
     df['Details'] = df['Details'].fillna('Other')
-    df['Paid In'] = df['Paid In'].fillna(0)
-    df['Withdrawn'] = df['Withdrawn'].fillna(0)
+    df['Paid In'] = pd.to_numeric(df['Paid In'], errors='coerce').fillna(0)
+    df['Withdrawn'] = pd.to_numeric(df['Withdrawn'], errors='coerce').fillna(0)
     df['Type'] = df['Withdrawn'].apply(lambda x: 1 if x == 0.0 else 0)
     df = df[df['Type'] == 0]
     df['Category'] = df['Details'].apply(categorize_details)
@@ -161,6 +245,7 @@ def load_data(xlsx_file=None):
     df['Month'] = pd.to_datetime(df['Completion Time']).dt.month
     df['Amount'] = df['Paid In'] - df['Withdrawn']
     return df
+
 
 
 
