@@ -1,0 +1,12 @@
+numpy
+scikit-learn
+matplotlib
+pandas
+streamlit
+seaborn
+plotly
+pyPDF2
+fpdf
+google.generativeai
+tabula-py
+tabula 
