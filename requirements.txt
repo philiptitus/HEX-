@@ -10,3 +10,4 @@ fpdf
 google.generativeai
 tabula-py
 tabula 
+openpyxl
