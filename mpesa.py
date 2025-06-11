@@ -13,6 +13,7 @@ import io
 from fpdf import FPDF
 import base64
 from time_category_insights import time_category_insights_ui
+import PyPDF2
 
 
 
@@ -255,11 +256,9 @@ def load_data(file=None, pdf_password=None):
 
 
 
-
-df = load_data(xlsx_file)
+df = load_data(file, pdf_password)
 if df is None:
     st.stop()
-
 
 
 
