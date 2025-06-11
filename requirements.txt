@@ -11,3 +11,4 @@ google.generativeai
 tabula-py
 tabula 
 openpyxl
+jpype
